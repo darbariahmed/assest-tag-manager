@@ -1,0 +1,1008 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Asset Tag Manager</title>
+<style>
+  :root{
+    --navy:#1F4E78; --navy-dark:#163A57; --ink:#1F2937; --muted:#6B7280;
+    --bg:#F5F6F8; --card:#FFFFFF; --border:#E2E5EA; --border-strong:#C7CCD4;
+    --yellow:#FFF2CC; --green:#2E7D63; --red:#B3382C;
+    --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    --sans: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:var(--sans);background:var(--bg);color:var(--ink);}
+  .app{max-width:1180px;margin:0 auto;padding:24px 20px 60px;}
+  header.top{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;}
+  header.top h1{font-size:20px;margin:0;color:var(--navy-dark);}
+  header.top p{margin:2px 0 0;font-size:13px;color:var(--muted);}
+  .tabs{display:flex;gap:4px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:4px;margin-bottom:20px;width:fit-content;}
+  .tab{padding:8px 16px;border-radius:8px;font-size:13.5px;font-weight:600;color:var(--muted);cursor:pointer;user-select:none;}
+  .tab.active{background:var(--navy);color:#fff;}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px 22px;margin-bottom:18px;}
+  .card h2{font-size:15px;margin:0 0 14px;color:var(--navy-dark);}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;}
+  label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:4px;}
+  input,select{width:100%;padding:8px 10px;border:1px solid var(--border-strong);border-radius:7px;font-size:13.5px;font-family:var(--sans);background:#fff;}
+  input:focus,select:focus{outline:2px solid var(--navy);outline-offset:0;border-color:var(--navy);}
+  .field{margin-bottom:0;}
+  .btn{padding:9px 16px;border-radius:8px;border:1px solid var(--border-strong);background:#fff;font-size:13.5px;font-weight:600;cursor:pointer;color:var(--ink);}
+  .btn:hover{background:#F0F1F3;}
+  .btn-primary{background:var(--navy);border-color:var(--navy);color:#fff;}
+  .btn-primary:hover{background:var(--navy-dark);}
+  .btn-danger{color:var(--red);border-color:#EAC1BC;}
+  .btn-danger:hover{background:#FCEDEB;}
+  .btn-sm{padding:5px 10px;font-size:12px;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th{text-align:left;font-size:11.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);padding:8px 10px;border-bottom:2px solid var(--border);}
+  td{padding:9px 10px;border-bottom:1px solid var(--border);vertical-align:top;}
+  tr:last-child td{border-bottom:none;}
+  .asset-id{font-family:var(--mono);font-weight:600;color:var(--navy-dark);font-size:12.5px;}
+  .muted{color:var(--muted);}
+  .filters{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;}
+  .filters select,.filters input{width:auto;min-width:160px;}
+  .empty{text-align:center;padding:40px 20px;color:var(--muted);font-size:14px;}
+  .row-actions{display:flex;gap:6px;}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:50;}
+  .toast.show{opacity:1;}
+  .settings-list{display:flex;flex-direction:column;gap:6px;margin-bottom:12px;}
+  .settings-row{display:flex;gap:8px;align-items:center;background:#FAFAFB;border:1px solid var(--border);border-radius:7px;padding:6px 10px;}
+  .settings-row span.code{font-family:var(--mono);font-weight:600;color:var(--navy-dark);min-width:70px;}
+  .settings-row span.name{flex:1;font-size:13px;}
+  .add-inline{display:flex;gap:8px;}
+  .add-inline input{padding:7px 9px;font-size:13px;}
+  #printArea{display:none;}
+  @media print{
+    body *{visibility:hidden;}
+    #printArea, #printArea *{visibility:visible;}
+    #printArea{display:block;position:absolute;top:0;left:0;margin:0;padding:0;}
+    @page{size:A4;margin:0;}
+  }
+  .sheet{width:210mm;height:297mm;page-break-after:always;position:relative;}
+  .sheet:last-child{page-break-after:auto;}
+  .label-grid{display:grid;grid-template-columns:repeat(3,70mm);grid-template-rows:repeat(10,29.7mm);}
+  .label{border:0.3px dashed #ccc;padding:1mm;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:visible;}
+  .label .lid{font-family:var(--mono);font-weight:700;font-size:9px;line-height:1.1;color:var(--navy-dark);white-space:nowrap;text-align:center;margin:0 0 0.8mm;}
+  .label .lqrbox{width:16mm;height:16mm;flex-shrink:0;}
+  .label .lqrbox img{width:100%;height:100%;display:block;}
+  .print-preview-wrap{background:#e9eaec;padding:20px;border-radius:10px;overflow:auto;max-height:640px;}
+  .preview-scale{transform-origin:top left;transform:scale(0.55);}
+  .badge{display:inline-block;background:var(--yellow);color:#7A5B00;font-size:11px;font-weight:600;padding:2px 8px;border-radius:5px;}
+  .server-note{font-size:11.5px;color:var(--muted);text-align:center;margin-top:14px;cursor:pointer;text-decoration:underline;}
+</style>
+</head>
+<body>
+
+<div id="loginScreen" style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg);">
+  <div class="card" style="width:340px;">
+    <h2>Log in</h2>
+    <div class="field" style="margin-bottom:12px;">
+      <label>Email</label>
+      <input id="login-username" placeholder="Enter your email" type="email" />
+    </div>
+    <div class="field" style="margin-bottom:12px;">
+      <label>Password</label>
+      <input id="login-password" type="password" placeholder="Enter password" />
+    </div>
+    <button class="btn btn-primary" id="login-btn" style="width:100%;">Log in</button>
+    <p class="muted" id="login-hint" style="font-size:12.5px;margin-top:12px;margin-bottom:0;">Ask your administrator for your username and password.</p>
+    <p class="server-note" id="server-note">Database: <span id="server-url-label"></span> (click to change)</p>
+  </div>
+</div>
+
+<div id="serverSetup" style="display:none;min-height:100vh;align-items:center;justify-content:center;background:var(--bg);">
+  <div class="card" style="width:380px;">
+    <h2>Connect to database</h2>
+    <p class="muted" style="font-size:12.5px;margin-top:0;">Enter your Supabase Project URL and anon public key (from Settings &rarr; API in your Supabase project).</p>
+    <div class="field" style="margin-bottom:12px;">
+      <label>Project URL</label>
+      <input id="server-url-input" placeholder="https://xxxxxxxx.supabase.co" />
+    </div>
+    <div class="field" style="margin-bottom:12px;">
+      <label>Anon public key</label>
+      <input id="server-key-input" placeholder="eyJhbGci..." />
+    </div>
+    <button class="btn btn-primary" id="server-save-btn" style="width:100%;">Save & continue</button>
+  </div>
+</div>
+
+<div class="app" id="mainApp" style="display:none;">
+
+  <header class="top">
+    <div>
+      <h1>Asset tag manager</h1>
+      <p>Add assets, then generate campus- and category-wise sticker sheets for printing.</p>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <span class="muted" id="whoami" style="font-size:13px;"></span>
+      <button class="btn btn-sm" id="logout-btn">Log out</button>
+    </div>
+  </header>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="inventory">Inventory</div>
+    <div class="tab" data-tab="print">Print labels</div>
+    <div class="tab" data-tab="settings">Campuses & categories</div>
+    <div class="tab" data-tab="users">Users</div>
+  </div>
+
+  <div id="tab-inventory">
+    <div class="card">
+      <h2 id="form-title">Add asset</h2>
+      <div class="grid" style="margin-bottom:12px;">
+        <div class="field">
+          <label>Campus</label>
+          <select id="f-campus"></select>
+        </div>
+        <div class="field">
+          <label>Category</label>
+          <select id="f-category"></select>
+        </div>
+        <div class="field">
+          <label>Description</label>
+          <input id="f-desc" placeholder="e.g. Split AC 1.5 Ton" />
+        </div>
+        <div class="field">
+          <label>Owner</label>
+          <input id="f-owner" placeholder="e.g. Admin Dept / Front Office / John's desk" />
+        </div>
+        <div class="field">
+          <label>Location / room</label>
+          <input id="f-location" placeholder="e.g. Admin Block, Room 3" />
+        </div>
+        <div class="field">
+          <label>Quantity</label>
+          <input id="f-qty" type="number" min="1" value="1" />
+        </div>
+        <div class="field">
+          <label>Unit value (PKR)</label>
+          <input id="f-value" type="number" min="0" placeholder="optional" />
+        </div>
+        <div class="field">
+          <label>Purchase date</label>
+          <input id="f-date" type="date" />
+        </div>
+        <div class="field">
+          <label>Condition</label>
+          <select id="f-condition">
+            <option>New</option><option>Good</option><option>Fair</option><option>Poor</option><option>Damaged</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Sub-category</label>
+          <input id="f-subcategory" placeholder="e.g. Laptop, Desktop, Split AC" />
+        </div>
+        <div class="field">
+          <label>Make</label>
+          <input id="f-make" placeholder="e.g. Dell, Samsung, LG" />
+        </div>
+        <div class="field">
+          <label>Model name</label>
+          <input id="f-model-name" placeholder="e.g. Inspiron 15" />
+        </div>
+        <div class="field">
+          <label>Model number</label>
+          <input id="f-model-number" placeholder="e.g. 3520" />
+        </div>
+        <div class="field">
+          <label>Serial number</label>
+          <input id="f-serial" placeholder="e.g. SN1234567" />
+        </div>
+        <div class="field">
+          <label>IMEI number</label>
+          <input id="f-imei" placeholder="for phones/tablets, if applicable" />
+        </div>
+        <div class="field">
+          <label>MAC address</label>
+          <input id="f-mac" placeholder="e.g. 00:1A:2B:3C:4D:5E" />
+        </div>
+        <div class="field">
+          <label>Floor</label>
+          <input id="f-floor" placeholder="e.g. Ground, 1st, 2nd" />
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-primary" id="save-btn">Add asset</button>
+        <button class="btn" id="cancel-edit-btn" style="display:none;">Cancel edit</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Assets</h2>
+      <div class="filters">
+        <select id="filter-campus"><option value="">All campuses</option></select>
+        <select id="filter-category"><option value="">All categories</option></select>
+        <input id="filter-search" placeholder="Search description, owner, or location" />
+        <button class="btn" id="refresh-btn">Refresh</button>
+        <button class="btn" id="export-excel-btn" style="margin-left:auto;">Export to Excel</button>
+      </div>
+      <div id="inventory-table"></div>
+    </div>
+  </div>
+
+  <div id="tab-print" style="display:none;">
+    <div class="card">
+      <h2>Choose what to print</h2>
+      <div class="grid" style="margin-bottom:14px;">
+        <div class="field">
+          <label>Campus</label>
+          <select id="print-campus"><option value="__all__">All campuses (separate sheet per campus)</option></select>
+        </div>
+        <div class="field">
+          <label>Category</label>
+          <select id="print-category"><option value="">All categories</option></select>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button class="btn btn-primary" id="generate-preview-btn">Generate preview</button>
+        <button class="btn" id="print-now-btn" style="display:none;">Print / save as PDF</button>
+        <span class="muted" id="label-count" style="font-size:13px;"></span>
+      </div>
+    </div>
+    <div class="card" id="preview-card" style="display:none;">
+      <h2>Preview <span class="muted" style="font-weight:400;">(scaled down — actual print is full A4 size)</span></h2>
+      <div class="print-preview-wrap">
+        <div class="preview-scale" id="preview-inner"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-settings" style="display:none;">
+    <div class="card">
+      <h2>Campuses</h2>
+      <div class="settings-list" id="campus-settings"></div>
+      <div class="add-inline">
+        <input id="new-campus-code" placeholder="Code e.g. TNS-DHA" style="max-width:160px;" />
+        <input id="new-campus-name" placeholder="Full name e.g. The Next School - DHA Campus" />
+        <button class="btn btn-sm" id="add-campus-btn">Add campus</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Categories</h2>
+      <div class="settings-list" id="category-settings"></div>
+      <div class="add-inline">
+        <input id="new-cat-code" placeholder="Code e.g. GEN" style="max-width:160px;" />
+        <input id="new-cat-name" placeholder="Full name e.g. Generators" />
+        <button class="btn btn-sm" id="add-cat-btn">Add category</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-users" style="display:none;">
+    <div class="card">
+      <h2>Dashboard users</h2>
+      <p class="muted" style="font-size:13px;margin-top:0;">Anyone you add here can log in with their own username and password. Choose "All campuses (admin)" for full access, or a specific campus to restrict an account to that campus only.</p>
+      <div class="settings-list" id="user-settings"></div>
+      <div class="add-inline">
+        <input id="new-user-name" placeholder="Username" style="max-width:150px;" />
+        <input id="new-user-pass" type="password" placeholder="Password" style="max-width:150px;" />
+        <select id="new-user-campus" style="max-width:220px;"></select>
+        <button class="btn btn-sm" id="add-user-btn">Add user</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="printArea"></div>
+  <div class="toast" id="toast"></div>
+</div>
+
+<script src="supabase.min.js"></script>
+<script src="qrcode.min.js"></script>
+<script src="xlsx.full.min.js"></script>
+<script>
+// ============================================================
+// DATABASE CONNECTION (Supabase)
+// Technical team / admin: set these two constants before building
+// the installer, so campus managers never touch config screens.
+// Get both from your Supabase project: Settings -> API.
+// ============================================================
+const DEFAULT_SUPABASE_URL = "https://YOUR-PROJECT.supabase.co";
+const DEFAULT_SUPABASE_ANON_KEY = "YOUR-ANON-PUBLIC-KEY";
+
+function getSupabaseUrl(){ return localStorage.getItem("atm_sb_url") || DEFAULT_SUPABASE_URL; }
+function getSupabaseKey(){ return localStorage.getItem("atm_sb_key") || DEFAULT_SUPABASE_ANON_KEY; }
+function setSupabaseConfig(url, key){
+  localStorage.setItem("atm_sb_url", url.trim().replace(/\/+$/,""));
+  localStorage.setItem("atm_sb_key", key.trim());
+}
+function configIsPlaceholder(){
+  return getSupabaseUrl().includes("YOUR-PROJECT") || getSupabaseKey().includes("YOUR-ANON-PUBLIC-KEY");
+}
+
+let sb = null;
+function ensureClient(){
+  sb = window.supabase.createClient(getSupabaseUrl(), getSupabaseKey());
+}
+
+// Global safety net: never fail silently. Any unexpected error anywhere
+// in the app will now show up as a message instead of the screen just
+// sitting there doing nothing.
+window.addEventListener("error", (e)=>{
+  showToastSafe("App error: " + (e && e.message ? e.message : "unknown error"));
+});
+window.addEventListener("unhandledrejection", (e)=>{
+  const reason = e && e.reason ? (e.reason.message || String(e.reason)) : "unknown error";
+  showToastSafe("App error: " + reason);
+});
+function showToastSafe(msg){
+  try{ showToast(msg); }catch(e){ /* toast fn not ready yet */ console.error(msg); }
+}
+
+let state = { campuses: [], categories: [], assets: [] };
+let editingId = null;
+let currentUser = null;   // email
+let isAdmin = false;
+let myCampusCode = null;
+
+function showToast(msg){
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("show");
+  setTimeout(()=>t.classList.remove("show"), 1800);
+}
+
+// ---------------- Config screen ----------------
+function showServerSetup(){
+  document.getElementById("loginScreen").style.display = "none";
+  document.getElementById("mainApp").style.display = "none";
+  document.getElementById("serverSetup").style.display = "flex";
+  document.getElementById("server-url-input").value = getSupabaseUrl().includes("YOUR-PROJECT") ? "" : getSupabaseUrl();
+  document.getElementById("server-key-input").value = getSupabaseKey().includes("YOUR-ANON-PUBLIC-KEY") ? "" : getSupabaseKey();
+}
+document.getElementById("server-save-btn").onclick = ()=>{
+  try{
+    const url = document.getElementById("server-url-input").value.trim();
+    const key = document.getElementById("server-key-input").value.trim();
+    if(!url || !key){ showToast("Enter both the Project URL and the anon key"); return; }
+    if(!/^https?:\/\//i.test(url)){ showToast("Project URL should start with https://"); return; }
+    setSupabaseConfig(url, key);
+    ensureClient();
+    showLogin();
+  }catch(e){
+    showToast("Something went wrong: " + (e && e.message ? e.message : e));
+  }
+};
+document.getElementById("server-note").onclick = showServerSetup;
+
+// ---------------- Login ----------------
+function showLogin(){
+  document.getElementById("serverSetup").style.display = "none";
+  document.getElementById("mainApp").style.display = "none";
+  document.getElementById("loginScreen").style.display = "flex";
+  document.getElementById("server-url-label").textContent = getSupabaseUrl();
+}
+
+document.getElementById("login-btn").onclick = async ()=>{
+  const btn = document.getElementById("login-btn");
+  try{
+    const email = document.getElementById("login-username").value.trim();
+    const pass = document.getElementById("login-password").value;
+    if(!email || !pass){ showToast("Enter your email and password"); return; }
+    btn.disabled = true; btn.textContent = "Logging in...";
+    const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
+    if(error){ showToast("Login failed: " + error.message); return; }
+    document.getElementById("login-password").value = "";
+    await loadMyProfileAndShowApp();
+  }catch(e){
+    showToast("Unexpected error: " + (e && e.message ? e.message : String(e)));
+  }finally{
+    btn.disabled = false; btn.textContent = "Log in";
+  }
+};
+
+document.getElementById("logout-btn").onclick = async ()=>{
+  await sb.auth.signOut();
+  document.getElementById("login-username").value = "";
+  document.getElementById("login-password").value = "";
+  showLogin();
+};
+
+async function loadMyProfileAndShowApp(){
+  const { data: { user } } = await sb.auth.getUser();
+  if(!user){ showLogin(); return; }
+  const { data: profile, error } = await sb.from("profiles").select("*").eq("id", user.id).single();
+  if(error || !profile){
+    showToast("Your login has no profile yet — ask your admin to check the Users setup.");
+    await sb.auth.signOut();
+    showLogin();
+    return;
+  }
+  currentUser = user.email;
+  isAdmin = !!profile.is_admin;
+  myCampusCode = profile.campus_code;
+  await showApp();
+}
+
+async function showApp(){
+  document.getElementById("loginScreen").style.display = "none";
+  document.getElementById("serverSetup").style.display = "none";
+  document.getElementById("mainApp").style.display = "block";
+  document.getElementById("whoami").textContent = isAdmin
+    ? "Logged in as " + currentUser + " — Admin (all campuses)"
+    : "Logged in as " + currentUser + " — " + (myCampusCode || "");
+  document.querySelector('.tab[data-tab="settings"]').style.display = isAdmin ? "block" : "none";
+  document.querySelector('.tab[data-tab="users"]').style.display = isAdmin ? "block" : "none";
+  if(!isAdmin){
+    document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+    document.querySelector('.tab[data-tab="inventory"]').classList.add("active");
+    ["inventory","print","settings","users"].forEach(name=>{
+      document.getElementById("tab-"+name).style.display = (name==="inventory") ? "block" : "none";
+    });
+  }
+  await loadData();
+}
+
+async function tryResumeSession(){
+  const { data: { session } } = await sb.auth.getSession();
+  if(!session){ showLogin(); return; }
+  await loadMyProfileAndShowApp();
+}
+
+// ---------------- Data load ----------------
+function campusName(code){ const c = state.campuses.find(x=>x.code===code); return c ? c.name : code; }
+function categoryName(code){ const c = state.categories.find(x=>x.code===code); return c ? c.name : code; }
+
+function mapAsset(row){
+  return {
+    id: row.id,
+    campusCode: row.campus_code,
+    categoryCode: row.category_code,
+    desc: row.description,
+    owner: row.owner,
+    location: row.location,
+    qty: row.qty,
+    unitValue: row.unit_value,
+    purchaseDate: row.purchase_date ? String(row.purchase_date).slice(0,10) : "",
+    condition: row.condition,
+    make: row.make,
+    modelName: row.model_name,
+    modelNumber: row.model_number,
+    serialNumber: row.serial_number,
+    imeiNumber: row.imei_number,
+    macAddress: row.mac_address,
+    subCategory: row.sub_category,
+    floor: row.floor,
+    createdAt: row.created_at
+  };
+}
+
+async function loadData(){
+  try{
+    const [{data: campuses, error: e1}, {data: categories, error: e2}, {data: assetsRaw, error: e3}] = await Promise.all([
+      sb.from("campuses").select("*").order("name"),
+      sb.from("categories").select("*").order("name"),
+      sb.from("assets").select("*").order("created_at", {ascending:false})
+    ]);
+    if(e1||e2||e3) throw (e1||e2||e3);
+    state.campuses = campuses || [];
+    state.categories = categories || [];
+    state.assets = (assetsRaw||[]).map(mapAsset);
+  }catch(e){
+    showToast(e.message || "Could not load data");
+  }
+  renderAll();
+  if(isAdmin) await loadUsers();
+}
+
+function fillSelect(sel, items, withBlank, blankLabel){
+  sel.innerHTML = "";
+  if(withBlank){
+    const o = document.createElement("option"); o.value=""; o.textContent = blankLabel || "Select...";
+    sel.appendChild(o);
+  }
+  items.forEach(it=>{
+    const o = document.createElement("option");
+    o.value = it.code; o.textContent = it.name + " (" + it.code + ")";
+    sel.appendChild(o);
+  });
+}
+
+function fillSelectPlain(sel, items, firstLabel, firstValue){
+  sel.innerHTML = "";
+  if(firstLabel !== undefined){
+    const o = document.createElement("option"); o.value = firstValue !== undefined ? firstValue : "";
+    o.textContent = firstLabel; sel.appendChild(o);
+  }
+  items.forEach(it=>{
+    const o = document.createElement("option");
+    o.value = it.code; o.textContent = it.name;
+    sel.appendChild(o);
+  });
+}
+
+function fillCampusAccessSelect(sel){
+  sel.innerHTML = "";
+  const allOpt = document.createElement("option");
+  allOpt.value = "__all__"; allOpt.textContent = "All campuses (admin)";
+  sel.appendChild(allOpt);
+  state.campuses.forEach(c=>{
+    const o = document.createElement("option");
+    o.value = c.code; o.textContent = c.name;
+    sel.appendChild(o);
+  });
+}
+
+function renderAll(){
+  const myCampusList = isAdmin ? state.campuses : state.campuses.filter(c=>c.code===myCampusCode);
+
+  fillSelect(document.getElementById("f-campus"), myCampusList, false);
+  fillSelect(document.getElementById("f-category"), state.categories, false);
+  document.getElementById("f-campus").disabled = !isAdmin;
+
+  const filterCampusEl = document.getElementById("filter-campus");
+  if(isAdmin){
+    filterCampusEl.style.display = "";
+    fillSelectPlain(filterCampusEl, state.campuses, "All campuses", "");
+  }else{
+    filterCampusEl.style.display = "none";
+  }
+  fillSelectPlain(document.getElementById("filter-category"), state.categories, "All categories", "");
+
+  const printCampusEl = document.getElementById("print-campus");
+  if(isAdmin){
+    fillSelectPlain(printCampusEl, state.campuses, "All campuses (separate sheet per campus)", "__all__");
+    printCampusEl.disabled = false;
+  }else{
+    fillSelectPlain(printCampusEl, myCampusList);
+    if(myCampusList.length) printCampusEl.value = myCampusList[0].code;
+    printCampusEl.disabled = true;
+  }
+  fillSelectPlain(document.getElementById("print-category"), state.categories, "All categories", "");
+
+  if(isAdmin) renderSettings();
+  renderInventory();
+}
+
+function renderSettings(){
+  const cWrap = document.getElementById("campus-settings");
+  cWrap.innerHTML = "";
+  state.campuses.forEach((c)=>{
+    const row = document.createElement("div"); row.className="settings-row";
+    row.innerHTML = `<span class="code">${c.code}</span><span class="name">${c.name}</span>`;
+    const del = document.createElement("button"); del.className="btn btn-sm btn-danger"; del.textContent="Remove";
+    del.onclick = async ()=>{
+      const { error } = await sb.from("campuses").delete().eq("code", c.code);
+      if(error){ showToast("Can't remove — assets exist for this campus"); return; }
+      await loadData();
+      showToast("Campus removed");
+    };
+    row.appendChild(del); cWrap.appendChild(row);
+  });
+
+  const catWrap = document.getElementById("category-settings");
+  catWrap.innerHTML = "";
+  state.categories.forEach((cat)=>{
+    const row = document.createElement("div"); row.className="settings-row";
+    row.innerHTML = `<span class="code">${cat.code}</span><span class="name">${cat.name}</span>`;
+    const del = document.createElement("button"); del.className="btn btn-sm btn-danger"; del.textContent="Remove";
+    del.onclick = async ()=>{
+      const { error } = await sb.from("categories").delete().eq("code", cat.code);
+      if(error){ showToast("Can't remove — assets exist for this category"); return; }
+      await loadData();
+      showToast("Category removed");
+    };
+    row.appendChild(del); catWrap.appendChild(row);
+  });
+}
+
+function renderInventory(){
+  const wrap = document.getElementById("inventory-table");
+  const fc = isAdmin ? document.getElementById("filter-campus").value : myCampusCode;
+  const fcat = document.getElementById("filter-category").value;
+  const fs = document.getElementById("filter-search").value.trim().toLowerCase();
+
+  let rows = state.assets.filter(a=>{
+    if(fc && a.campusCode!==fc) return false;
+    if(fcat && a.categoryCode!==fcat) return false;
+    if(fs && !((a.desc||"").toLowerCase().includes(fs) || (a.owner||"").toLowerCase().includes(fs) || (a.location||"").toLowerCase().includes(fs))) return false;
+    return true;
+  });
+
+  if(rows.length===0){
+    wrap.innerHTML = '<div class="empty">No assets yet. Add your first asset above.</div>';
+    return;
+  }
+
+  let html = '<table><thead><tr><th>Campus</th><th>Category</th><th>Description</th><th>Make / Model</th><th>Serial No</th><th>Floor</th><th>Owner</th><th>Location</th><th>Qty</th><th>Condition</th><th></th></tr></thead><tbody>';
+  rows.forEach(a=>{
+    const makeModel = [a.make, a.modelName].filter(Boolean).join(" ");
+    html += `<tr>
+      <td>${campusName(a.campusCode)}</td>
+      <td>${categoryName(a.categoryCode)}</td>
+      <td>${a.desc||""}</td>
+      <td class="muted">${makeModel}</td>
+      <td class="muted">${a.serialNumber||""}</td>
+      <td class="muted">${a.floor||""}</td>
+      <td class="muted">${a.owner||""}</td>
+      <td class="muted">${a.location||""}</td>
+      <td>${a.qty}</td>
+      <td class="muted">${a.condition||""}</td>
+      <td><div class="row-actions">
+        <button class="btn btn-sm" data-edit="${a.id}">Edit</button>
+        <button class="btn btn-sm btn-danger" data-del="${a.id}">Delete</button>
+      </div></td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+
+  wrap.querySelectorAll("[data-edit]").forEach(btn=>{
+    btn.onclick = ()=> startEdit(btn.getAttribute("data-edit"));
+  });
+  wrap.querySelectorAll("[data-del]").forEach(btn=>{
+    btn.onclick = async ()=>{
+      const id = btn.getAttribute("data-del");
+      const { error } = await sb.from("assets").delete().eq("id", id);
+      if(error){ showToast(error.message); return; }
+      state.assets = state.assets.filter(a=>String(a.id)!==id);
+      renderInventory();
+      showToast("Asset deleted");
+    };
+  });
+}
+
+function startEdit(id){
+  const a = state.assets.find(x=>String(x.id)===String(id));
+  if(!a) return;
+  editingId = a.id;
+  document.getElementById("f-campus").value = a.campusCode;
+  document.getElementById("f-category").value = a.categoryCode;
+  document.getElementById("f-desc").value = a.desc||"";
+  document.getElementById("f-owner").value = a.owner||"";
+  document.getElementById("f-location").value = a.location||"";
+  document.getElementById("f-qty").value = a.qty||1;
+  document.getElementById("f-value").value = a.unitValue||"";
+  document.getElementById("f-date").value = a.purchaseDate||"";
+  document.getElementById("f-condition").value = a.condition||"New";
+  document.getElementById("f-make").value = a.make||"";
+  document.getElementById("f-model-name").value = a.modelName||"";
+  document.getElementById("f-model-number").value = a.modelNumber||"";
+  document.getElementById("f-serial").value = a.serialNumber||"";
+  document.getElementById("f-imei").value = a.imeiNumber||"";
+  document.getElementById("f-mac").value = a.macAddress||"";
+  document.getElementById("f-subcategory").value = a.subCategory||"";
+  document.getElementById("f-floor").value = a.floor||"";
+  document.getElementById("form-title").textContent = "Edit asset";
+  document.getElementById("save-btn").textContent = "Save changes";
+  document.getElementById("cancel-edit-btn").style.display = "inline-block";
+  window.scrollTo({top:0, behavior:"smooth"});
+}
+
+function resetForm(){
+  editingId = null;
+  document.getElementById("f-desc").value = "";
+  document.getElementById("f-owner").value = "";
+  document.getElementById("f-location").value = "";
+  document.getElementById("f-qty").value = 1;
+  document.getElementById("f-value").value = "";
+  document.getElementById("f-date").value = "";
+  document.getElementById("f-condition").value = "New";
+  document.getElementById("f-make").value = "";
+  document.getElementById("f-model-name").value = "";
+  document.getElementById("f-model-number").value = "";
+  document.getElementById("f-serial").value = "";
+  document.getElementById("f-imei").value = "";
+  document.getElementById("f-mac").value = "";
+  document.getElementById("f-subcategory").value = "";
+  document.getElementById("f-floor").value = "";
+  document.getElementById("form-title").textContent = "Add asset";
+  document.getElementById("save-btn").textContent = "Add asset";
+  document.getElementById("cancel-edit-btn").style.display = "none";
+}
+
+document.getElementById("save-btn").onclick = async ()=>{
+  const campusCode = isAdmin ? document.getElementById("f-campus").value : myCampusCode;
+  const categoryCode = document.getElementById("f-category").value;
+  const desc = document.getElementById("f-desc").value.trim();
+  const owner = document.getElementById("f-owner").value.trim();
+  const location = document.getElementById("f-location").value.trim();
+  const qty = parseInt(document.getElementById("f-qty").value) || 1;
+  const unitValue = document.getElementById("f-value").value;
+  const purchaseDate = document.getElementById("f-date").value;
+  const condition = document.getElementById("f-condition").value;
+  const make = document.getElementById("f-make").value.trim();
+  const modelName = document.getElementById("f-model-name").value.trim();
+  const modelNumber = document.getElementById("f-model-number").value.trim();
+  const serialNumber = document.getElementById("f-serial").value.trim();
+  const imeiNumber = document.getElementById("f-imei").value.trim();
+  const macAddress = document.getElementById("f-mac").value.trim();
+  const subCategory = document.getElementById("f-subcategory").value.trim();
+  const floor = document.getElementById("f-floor").value.trim();
+
+  if(!campusCode || !categoryCode){ showToast("Pick a campus and category first"); return; }
+  if(!desc){ showToast("Add a short description"); return; }
+  if(qty < 1){ showToast("Quantity must be at least 1"); return; }
+
+  const payload = {
+    campus_code: campusCode, category_code: categoryCode, description: desc, owner, location,
+    qty, unit_value: unitValue || null, purchase_date: purchaseDate || null, condition,
+    make: make || null, model_name: modelName || null, model_number: modelNumber || null,
+    serial_number: serialNumber || null, imei_number: imeiNumber || null, mac_address: macAddress || null,
+    sub_category: subCategory || null, floor: floor || null
+  };
+
+  let error;
+  if(editingId){
+    payload.updated_at = new Date().toISOString();
+    ({ error } = await sb.from("assets").update(payload).eq("id", editingId));
+  }else{
+    ({ error } = await sb.from("assets").insert(payload));
+  }
+  if(error){ showToast(error.message); return; }
+  showToast(editingId ? "Asset updated" : "Asset added");
+  await loadData();
+  resetForm();
+};
+
+document.getElementById("cancel-edit-btn").onclick = resetForm;
+document.getElementById("filter-campus").onchange = renderInventory;
+document.getElementById("filter-category").onchange = renderInventory;
+document.getElementById("filter-search").oninput = renderInventory;
+document.getElementById("refresh-btn").onclick = loadData;
+
+document.getElementById("add-campus-btn").onclick = async ()=>{
+  const code = document.getElementById("new-campus-code").value.trim().toUpperCase();
+  const name = document.getElementById("new-campus-name").value.trim();
+  if(!code || !name){ showToast("Enter both a code and a name"); return; }
+  const { error } = await sb.from("campuses").upsert({code, name});
+  if(error){ showToast(error.message); return; }
+  document.getElementById("new-campus-code").value = "";
+  document.getElementById("new-campus-name").value = "";
+  await loadData();
+  showToast("Campus added");
+};
+
+document.getElementById("add-cat-btn").onclick = async ()=>{
+  const code = document.getElementById("new-cat-code").value.trim().toUpperCase();
+  const name = document.getElementById("new-cat-name").value.trim();
+  if(!code || !name){ showToast("Enter both a code and a name"); return; }
+  const { error } = await sb.from("categories").upsert({code, name});
+  if(error){ showToast(error.message); return; }
+  document.getElementById("new-cat-code").value = "";
+  document.getElementById("new-cat-name").value = "";
+  await loadData();
+  showToast("Category added");
+};
+
+// ---------------- Users tab (admin only) ----------------
+// Note: creating/removing logins themselves is done from the Supabase
+// dashboard (Authentication tab) for security reasons. This tab shows
+// who has access and lets you assign/change their campus.
+async function loadUsers(){
+  const { data: users, error } = await sb.from("profiles").select("*").order("email");
+  if(error) return;
+  renderUserSettings(users || []);
+}
+
+function renderUserSettings(users){
+  const wrap = document.getElementById("user-settings");
+  if(!wrap) return;
+  wrap.innerHTML = "";
+  if(!users || users.length === 0){
+    wrap.innerHTML = '<div class="empty">No users yet. Add logins from Supabase &rarr; Authentication &rarr; Users.</div>';
+    return;
+  }
+  users.forEach(u=>{
+    const row = document.createElement("div"); row.className = "settings-row";
+    const campusLabel = u.is_admin ? "All campuses (admin)" : (u.campus_code ? campusName(u.campus_code) : "Not assigned yet");
+    row.innerHTML = `<span class="name">${u.email} <span class="muted" style="font-size:12px;">— ${campusLabel}</span></span>`;
+    wrap.appendChild(row);
+  });
+  const hint = document.createElement("p");
+  hint.className = "muted";
+  hint.style.fontSize = "12px";
+  hint.textContent = "To add a new user or change who has access, go to your Supabase project \u2192 Authentication (to add a login) and Table Editor \u2192 profiles (to set their campus_code / is_admin).";
+  wrap.appendChild(hint);
+}
+const addUserBtn = document.getElementById("add-user-btn");
+if(addUserBtn){
+  addUserBtn.style.display = "none"; // user creation happens in Supabase dashboard, see hint above
+}
+const newUserRow = document.getElementById("new-user-name");
+if(newUserRow) newUserRow.closest(".add-inline").style.display = "none";
+
+// ---------------- Export to Excel ----------------
+document.getElementById("export-excel-btn").onclick = ()=>{
+  const exportAssets = isAdmin ? state.assets : state.assets.filter(a=>a.campusCode===myCampusCode);
+  if(exportAssets.length === 0){
+    showToast("No assets to export yet");
+    return;
+  }
+  const rows = exportAssets.map(a=>({
+    "Campus": campusName(a.campusCode),
+    "Campus Code": a.campusCode,
+    "Category": categoryName(a.categoryCode),
+    "Category Code": a.categoryCode,
+    "Description": a.desc || "",
+    "Owner": a.owner || "",
+    "Location / Room": a.location || "",
+    "Qty": a.qty,
+    "Unit Value (PKR)": a.unitValue || "",
+    "Total Value (PKR)": (a.unitValue && a.qty) ? (Number(a.unitValue) * Number(a.qty)) : "",
+    "Purchase Date": a.purchaseDate || "",
+    "Condition": a.condition || "",
+    "Make": a.make || "",
+    "Model Name": a.modelName || "",
+    "Model Number": a.modelNumber || "",
+    "Serial Number": a.serialNumber || "",
+    "IMEI Number": a.imeiNumber || "",
+    "MAC Address": a.macAddress || "",
+    "Sub-Category": a.subCategory || "",
+    "Floor": a.floor || ""
+  }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws["!cols"] = [
+    {wch:28},{wch:12},{wch:22},{wch:12},{wch:30},{wch:20},
+    {wch:18},{wch:6},{wch:14},{wch:14},{wch:13},{wch:12}
+  ];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Asset Inventory");
+  const stamp = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, "Asset_Inventory_" + stamp + ".xlsx");
+  showToast("Excel file downloaded");
+};
+
+document.querySelectorAll(".tab").forEach(t=>{
+  t.onclick = ()=>{
+    document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+    t.classList.add("active");
+    ["inventory","print","settings","users"].forEach(name=>{
+      document.getElementById("tab-"+name).style.display = (name===t.dataset.tab) ? "block" : "none";
+    });
+  };
+});
+
+// ---------------- Print labels ----------------
+function buildExpandedLabels(assetsFiltered){
+  const sorted = assetsFiltered.slice().sort((a,b)=>{
+    if(a.campusCode !== b.campusCode) return a.campusCode.localeCompare(b.campusCode);
+    const ai = state.categories.findIndex(c=>c.code===a.categoryCode);
+    const bi = state.categories.findIndex(c=>c.code===b.categoryCode);
+    if(ai !== bi) return ai - bi;
+    return (a.createdAt||0) - (b.createdAt||0);
+  });
+  const seqCounter = {};
+  const labels = [];
+  sorted.forEach(a=>{
+    const key = a.campusCode + "|" + a.categoryCode;
+    for(let i=0;i<a.qty;i++){
+      seqCounter[key] = (seqCounter[key]||0) + 1;
+      const seq = seqCounter[key];
+      const id = a.campusCode + "-" + a.categoryCode + "-" + String(seq).padStart(4,"0");
+      labels.push({
+        assetId: id, campus: campusName(a.campusCode), category: categoryName(a.categoryCode),
+        desc: a.desc, owner: a.owner, location: a.location, qty: a.qty, unitValue: a.unitValue,
+        purchaseDate: a.purchaseDate, condition: a.condition, campusCode: a.campusCode,
+        make: a.make, modelName: a.modelName, modelNumber: a.modelNumber, serialNumber: a.serialNumber,
+        imeiNumber: a.imeiNumber, macAddress: a.macAddress, subCategory: a.subCategory, floor: a.floor
+      });
+    }
+  });
+  return labels;
+}
+
+function buildQRText(l){
+  const lines = [
+    "Asset ID: " + l.assetId,
+    "Campus: " + l.campus,
+    "Category: " + l.category,
+    "Description: " + (l.desc || "-")
+  ];
+  if(l.owner) lines.push("Owner: " + l.owner);
+  if(l.location) lines.push("Location: " + l.location);
+  if(l.floor) lines.push("Floor: " + l.floor);
+  if(l.subCategory) lines.push("Sub-category: " + l.subCategory);
+  if(l.make || l.modelName) lines.push("Make/Model: " + [l.make, l.modelName].filter(Boolean).join(" "));
+  if(l.modelNumber) lines.push("Model no: " + l.modelNumber);
+  if(l.serialNumber) lines.push("Serial no: " + l.serialNumber);
+  if(l.imeiNumber) lines.push("IMEI: " + l.imeiNumber);
+  if(l.macAddress) lines.push("MAC: " + l.macAddress);
+  if(l.qty) lines.push("Qty (batch): " + l.qty);
+  if(l.unitValue) lines.push("Unit value (PKR): " + l.unitValue);
+  if(l.purchaseDate) lines.push("Purchase date: " + l.purchaseDate);
+  if(l.condition) lines.push("Condition: " + l.condition);
+  return lines.join("\n");
+}
+
+function makeQRDataURL(text){
+  const tempDiv = document.createElement("div");
+  tempDiv.style.position = "absolute";
+  tempDiv.style.left = "-9999px";
+  document.body.appendChild(tempDiv);
+  let dataUrl = "";
+  try{
+    new QRCode(tempDiv, {text: text, width: 180, height: 180, correctLevel: QRCode.CorrectLevel.M});
+    const canvas = tempDiv.querySelector("canvas");
+    if(canvas){
+      dataUrl = canvas.toDataURL("image/png");
+    }else{
+      const img = tempDiv.querySelector("img");
+      if(img) dataUrl = img.src;
+    }
+  }catch(e){
+    console.error("QR generation failed:", e);
+  }
+  document.body.removeChild(tempDiv);
+  return dataUrl;
+}
+
+function renderSheetHTML(labels){
+  let html = "";
+  for(let i=0;i<labels.length;i+=30){
+    const chunk = labels.slice(i,i+30);
+    html += '<div class="sheet"><div class="label-grid">';
+    chunk.forEach(l=>{
+      html += `<div class="label">
+        <div class="lid">${l.assetId}</div>
+        <div class="lqrbox"><img src="${l.qrDataUrl}" alt="QR code for ${l.assetId}" /></div>
+      </div>`;
+    });
+    const remainder = 30 - chunk.length;
+    for(let j=0;j<remainder;j++){ html += '<div class="label"></div>'; }
+    html += '</div></div>';
+  }
+  return html;
+}
+
+document.getElementById("generate-preview-btn").onclick = ()=>{
+  document.getElementById("label-count").textContent = "Generating QR codes...";
+  document.getElementById("generate-preview-btn").disabled = true;
+  setTimeout(runGeneratePreview, 30);
+};
+
+function runGeneratePreview(){
+  document.getElementById("generate-preview-btn").disabled = false;
+  const campusSel = document.getElementById("print-campus").value;
+  const catSel = document.getElementById("print-category").value;
+
+  let filtered = state.assets.slice();
+  if(catSel) filtered = filtered.filter(a=>a.categoryCode===catSel);
+
+  let sheetsHTML = "";
+  let totalLabels = 0;
+
+  if(campusSel === "__all__"){
+    const campusCodesInUse = [...new Set(filtered.map(a=>a.campusCode))];
+    const orderedCampusCodes = state.campuses.map(c=>c.code).filter(c=>campusCodesInUse.includes(c));
+    orderedCampusCodes.forEach(cc=>{
+      const forCampus = filtered.filter(a=>a.campusCode===cc);
+      const labels = buildExpandedLabels(forCampus);
+      labels.forEach(l=>{ l.qrDataUrl = makeQRDataURL(buildQRText(l)); });
+      totalLabels += labels.length;
+      sheetsHTML += renderSheetHTML(labels);
+    });
+  }else{
+    filtered = filtered.filter(a=>a.campusCode===campusSel);
+    const labels = buildExpandedLabels(filtered);
+    labels.forEach(l=>{ l.qrDataUrl = makeQRDataURL(buildQRText(l)); });
+    totalLabels = labels.length;
+    sheetsHTML = renderSheetHTML(labels);
+  }
+
+  if(totalLabels === 0){
+    document.getElementById("preview-card").style.display = "none";
+    document.getElementById("print-now-btn").style.display = "none";
+    document.getElementById("label-count").textContent = "No matching assets found.";
+    return;
+  }
+
+  document.getElementById("printArea").innerHTML = sheetsHTML;
+  document.getElementById("preview-inner").innerHTML = sheetsHTML;
+  document.getElementById("preview-card").style.display = "block";
+  document.getElementById("print-now-btn").style.display = "inline-block";
+  const pages = Math.ceil(totalLabels/30);
+  document.getElementById("label-count").textContent = totalLabels + " label" + (totalLabels===1?"":"s") + " across " + pages + " page" + (pages===1?"":"s") + ".";
+}
+
+document.getElementById("print-now-btn").onclick = ()=>{ window.print(); };
+
+// ---------------- Boot ----------------
+if(configIsPlaceholder()){
+  showServerSetup();
+}else{
+  ensureClient();
+  tryResumeSession();
+}
+</script>
+</body>
+</html>
