@@ -859,6 +859,8 @@ function buildExpandedLabels(assetsFiltered){
     const ai = state.categories.findIndex(c=>c.code===a.categoryCode);
     const bi = state.categories.findIndex(c=>c.code===b.categoryCode);
     if(ai !== bi) return ai - bi;
+    const descCompare = (a.desc||"").localeCompare((b.desc||""), undefined, {numeric:true, sensitivity:"base"});
+    if(descCompare !== 0) return descCompare;
     return (a.createdAt||0) - (b.createdAt||0);
   });
   const seqCounter = {};
