@@ -62,9 +62,13 @@
   .sheet{width:210mm;height:297mm;page-break-after:always;position:relative;}
   .sheet:last-child{page-break-after:auto;}
   .label-grid{display:grid;grid-template-columns:repeat(3,70mm);grid-template-rows:repeat(10,29.7mm);}
-  .label{border:0.3px dashed #ccc;padding:1mm;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:visible;}
-  .label .lid{font-family:var(--mono);font-weight:700;font-size:9px;line-height:1.1;color:var(--navy-dark);white-space:nowrap;text-align:center;margin:0 0 0.8mm;}
-  .label .lqrbox{width:16mm;height:16mm;flex-shrink:0;}
+  .label{border:0.3px dashed #ccc;padding:1.5mm 2mm;display:flex;flex-direction:row;align-items:center;justify-content:flex-start;gap:2mm;overflow:hidden;}
+  .label .lid{font-family:var(--mono);font-weight:700;font-size:9px;line-height:1.15;color:var(--navy-dark);white-space:nowrap;text-align:left;margin:0 0 0.8mm;}
+  .label .ltext{min-width:0;flex:1;display:flex;flex-direction:column;justify-content:center;}
+  .label .ldesc{font-weight:700;font-size:8px;line-height:1.2;color:#111;margin:0 0 0.6mm;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+  .label .lloc{font-size:7.5px;line-height:1.2;color:#222;margin:0 0 0.6mm;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+  .label .lmeta{font-size:6.5px;line-height:1.2;color:#555;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+  .label .lqrbox{width:24mm;height:24mm;flex-shrink:0;}
   .label .lqrbox img{width:100%;height:100%;display:block;}
   .print-preview-wrap{background:#e9eaec;padding:20px;border-radius:10px;overflow:auto;max-height:640px;}
   .preview-scale{transform-origin:top left;transform:scale(0.55);}
@@ -338,7 +342,7 @@ let myCampusCode = null;
 function showToast(msg){
   const t = document.getElementById("toast");
   t.textContent = msg; t.classList.add("show");
-  setTimeout(()=>t.classList.remove("show"), 1800);
+  setTimeout(()=>t.classList.remove("show"), msg.length > 40 ? 5000 : 1800);
 }
 
 // ---------------- Config screen ----------------
@@ -444,6 +448,7 @@ function categoryName(code){ const c = state.categories.find(x=>x.code===code); 
 
 function mapAsset(row){
   return {
+    seqStart: (row.seq_start===undefined||row.seq_start===null) ? null : Number(row.seq_start),
     id: row.id,
     campusCode: row.campus_code,
     categoryCode: row.category_code,
@@ -722,14 +727,17 @@ document.getElementById("save-btn").onclick = async ()=>{
   };
 
   let error;
+  let renumbered = false;
   if(editingId){
+    const before = state.assets.find(x=>String(x.id)===String(editingId));
+    renumbered = !!before && (qty > (before.qty||1) || campusCode !== before.campusCode || categoryCode !== before.categoryCode);
     payload.updated_at = new Date().toISOString();
     ({ error } = await sb.from("assets").update(payload).eq("id", editingId));
   }else{
     ({ error } = await sb.from("assets").insert(payload));
   }
   if(error){ showToast(error.message); return; }
-  showToast(editingId ? "Asset updated" : "Asset added");
+  showToast(editingId ? (renumbered ? "Updated - label numbers for this item changed, please reprint its stickers" : "Asset updated") : "Asset added");
   await loadData();
   resetForm();
 };
@@ -854,11 +862,22 @@ document.querySelectorAll(".tab").forEach(t=>{
 
 // ---------------- Print labels ----------------
 function buildExpandedLabels(assetsFiltered){
+  // A campus+category group uses the permanent numbers saved in the database
+  // when EVERY item in it has one; otherwise it falls back to the old print-time numbering.
+  const groupStored = {};
+  assetsFiltered.forEach(a=>{
+    const key = a.campusCode + "|" + a.categoryCode;
+    if(groupStored[key] === undefined) groupStored[key] = true;
+    if(a.seqStart === null || a.seqStart === undefined) groupStored[key] = false;
+  });
   const sorted = assetsFiltered.slice().sort((a,b)=>{
     if(a.campusCode !== b.campusCode) return a.campusCode.localeCompare(b.campusCode);
     const ai = state.categories.findIndex(c=>c.code===a.categoryCode);
     const bi = state.categories.findIndex(c=>c.code===b.categoryCode);
     if(ai !== bi) return ai - bi;
+    if(a.categoryCode === b.categoryCode && groupStored[a.campusCode+"|"+a.categoryCode]){
+      return a.seqStart - b.seqStart;
+    }
     const descCompare = (a.desc||"").localeCompare((b.desc||""), undefined, {numeric:true, sensitivity:"base"});
     if(descCompare !== 0) return descCompare;
     return (a.createdAt||0) - (b.createdAt||0);
@@ -868,8 +887,13 @@ function buildExpandedLabels(assetsFiltered){
   sorted.forEach(a=>{
     const key = a.campusCode + "|" + a.categoryCode;
     for(let i=0;i<a.qty;i++){
-      seqCounter[key] = (seqCounter[key]||0) + 1;
-      const seq = seqCounter[key];
+      let seq;
+      if(groupStored[key]){
+        seq = a.seqStart + i;
+      }else{
+        seqCounter[key] = (seqCounter[key]||0) + 1;
+        seq = seqCounter[key];
+      }
       const id = a.campusCode + "-" + a.categoryCode + "-" + String(seq).padStart(4,"0");
       labels.push({
         assetId: id, campus: campusName(a.campusCode), category: categoryName(a.categoryCode),
@@ -934,9 +958,17 @@ function renderSheetHTML(labels){
     const chunk = labels.slice(i,i+30);
     html += '<div class="sheet"><div class="label-grid">';
     chunk.forEach(l=>{
+      const esc = (t)=>String(t==null?"":t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+      const locParts = []; if(l.location) locParts.push(l.location); if(l.floor) locParts.push("Floor: " + l.floor);
+      const locText = locParts.join(" \u00B7 ");
       html += `<div class="label">
-        <div class="lid">${l.assetId}</div>
         <div class="lqrbox"><img src="${l.qrDataUrl}" alt="QR code for ${l.assetId}" /></div>
+        <div class="ltext">
+          <div class="lid">${esc(l.assetId)}</div>
+          <div class="ldesc">${esc(l.desc || l.category)}</div>
+          <div class="lloc">Location: ${esc(locText || "not set")}</div>
+          <div class="lmeta">${esc(l.category)} \u00B7 ${esc(l.campus)}</div>
+        </div>
       </div>`;
     });
     const remainder = 30 - chunk.length;
